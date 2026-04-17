@@ -1,5 +1,8 @@
-﻿using Bang.StateMachines;
+﻿using Bang.Entities;
+using Bang.StateMachines;
 using HarmonyLib;
+using Murder.Components;
+using Murder.Services;
 using Road.StateMachines;
 using System.Reflection;
 using System.Reflection.Emit;
@@ -22,31 +25,46 @@ public class ModEntry
     }
 }
 
-[HarmonyPatch(typeof(NpcDoorStateMachine))]
-[HarmonyPatch("Closed", MethodType.Enumerator)]
-public static class NPCDoor_Patch
+[HarmonyPatch]
+public static class AllNpcDoorsOpen_Patch
 {
-    static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
-    {
-        var openPendingField = AccessTools.Field(typeof(NpcDoorStateMachine), "_openPending");
-        bool foundAndReplaced = false;
+    private static readonly MethodInfo AddPassageMethod = AccessTools.Method(typeof(NpcDoorStateMachine), "AddPassageWhenOpened");
+    private static readonly FieldInfo SetToFloorField = AccessTools.Field(typeof(NpcDoorStateMachine), "_setToFloorWhenOpened");
 
-        foreach (var instruction in instructions)
+    static IEnumerable<MethodBase> TargetMethods()
+    {
+        yield return AccessTools.Method(typeof(NpcDoorStateMachine), nameof(NpcDoorStateMachine.Start));
+        yield return AccessTools.Method(typeof(NpcDoorStateMachine), nameof(NpcDoorStateMachine.Closed));
+        yield return AccessTools.Method(typeof(NpcDoorStateMachine), nameof(NpcDoorStateMachine.Close));
+        yield return AccessTools.Method(typeof(NpcDoorStateMachine), nameof(NpcDoorStateMachine.Open));
+        yield return AccessTools.Method(typeof(NpcDoorStateMachine), nameof(NpcDoorStateMachine.Opened));
+    }
+
+    static bool Prefix(NpcDoorStateMachine __instance, ref IEnumerator<Wait> __result)
+    {
+        __result = ForceNpcOpenForever(__instance);
+        return false;
+    }
+
+    static IEnumerator<Wait> ForceNpcOpenForever(NpcDoorStateMachine instance)
+    {
+        Entity entity = Traverse.Create(instance).Property("Entity").GetValue<Entity>();
+
+        if (entity != null)
         {
-            if (instruction.LoadsField(openPendingField))
-            {
-                yield return new CodeInstruction(OpCodes.Pop);
-                yield return new CodeInstruction(OpCodes.Ldc_I4_1);
-                foundAndReplaced = true;
-            }
-            else
-            {
-                yield return instruction;
-            }
+            AddPassageMethod?.Invoke(instance, null);
+            
+            SpriteComponent? spriteComponent = entity.PlaySpriteAnimation("opened");
+            bool setToFloor = (bool)(SetToFloorField?.GetValue(instance) ?? true);
+            
+            if (setToFloor && spriteComponent.HasValue)
+                spriteComponent = spriteComponent.Value.SetBatch(1);
+
+            if (spriteComponent.HasValue)
+                entity.SetSprite(spriteComponent.Value);
         }
 
-        if (!foundAndReplaced)
-            LoaderCore.LogError("Could not find the NPCDoorStateMachine _openPending check.");
+        yield return Wait.Stop;
     }
 }
 
@@ -68,7 +86,7 @@ public static class AllDoorsOpen_Patch
     static bool Prefix(DoorStateMachine __instance, ref IEnumerator<Wait> __result)
     {
         __result = ForceOpenForever(__instance);
-        return false;
+        return false; // Don't call original
     }
 
     static IEnumerator<Wait> ForceOpenForever(DoorStateMachine instance)
