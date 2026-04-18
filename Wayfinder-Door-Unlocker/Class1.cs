@@ -13,7 +13,7 @@ public class ModEntry : IWayfinderMod
 {
     public string Name => "Door Unlocker";
     public string Description => "Forces a lot of doors to be open always";
-    public string Version => "1.1.0";
+    public string Version => "1.2.0";
     public string Author => "Echoviax";
 
     private Harmony _harmony;
