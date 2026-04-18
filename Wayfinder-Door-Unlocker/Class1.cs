@@ -3,25 +3,38 @@ using Bang.StateMachines;
 using HarmonyLib;
 using Murder.Components;
 using Murder.Services;
+using Road.Components;
 using Road.StateMachines;
 using System.Reflection;
-using System.Reflection.Emit;
 using Wayfinder.Core;
+using Wayfinder.API;
 
-public class ModEntry
+public class ModEntry : IWayfinderMod
 {
-    public static void Start()
+    public string Name => "Door Unlocker";
+    public string Description => "Forces a lot of doors to be open always";
+    public string Version => "1.1.0";
+    public string Author => "Echoviax";
+
+    private Harmony _harmony;
+
+    public void Start()
     {
         try
         {
-            var harmony = new Harmony("com.echoviax.doorunlocker");
-            harmony.PatchAll();
-            LoaderCore.LogSuccess("Successfully injected.");
+            _harmony = new Harmony("com.echoviax.dooropener");
+            _harmony.PatchAll();
         }
         catch (Exception ex)
         {
             LoaderCore.LogError("Failed to inject: " + ex);
         }
+        
+    }
+
+    public void Stop()
+    {
+        _harmony?.UnpatchAll(_harmony.Id);
     }
 }
 
@@ -96,6 +109,63 @@ public static class AllDoorsOpen_Patch
         PlayAnimationsMethod?.Invoke(instance, new object[] { true, new string[] { "opened" } });
 
         // Don't call original
+        yield return Wait.Stop;
+    }
+}
+[HarmonyPatch]
+public static class AllBuildingDoorsOpen_Patch
+{
+    private static readonly FieldInfo ClosedField = AccessTools.Field(typeof(BuildingDoorStateMachine), "_closed");
+
+    static IEnumerable<MethodBase> TargetMethods()
+    {
+        yield return AccessTools.Method(typeof(BuildingDoorStateMachine), nameof(BuildingDoorStateMachine.WaitUntilOpened));
+        yield return AccessTools.Method(typeof(BuildingDoorStateMachine), nameof(BuildingDoorStateMachine.Closed));
+        yield return AccessTools.Method(typeof(BuildingDoorStateMachine), nameof(BuildingDoorStateMachine.Close));
+        yield return AccessTools.Method(typeof(BuildingDoorStateMachine), nameof(BuildingDoorStateMachine.Open));
+        yield return AccessTools.Method(typeof(BuildingDoorStateMachine), nameof(BuildingDoorStateMachine.Opened));
+    }
+
+    static bool Prefix(BuildingDoorStateMachine __instance, ref IEnumerator<Wait> __result)
+    {
+        __result = ForceBuildingOpenForever(__instance);
+        return false;
+    }
+
+    static IEnumerator<Wait> ForceBuildingOpenForever(BuildingDoorStateMachine instance)
+    {
+        Entity entity = Traverse.Create(instance).Property("Entity").GetValue<Entity>();
+
+        if (entity != null)
+        {
+            ClosedField?.SetValue(instance, false);
+            entity.SetBuildingStatus(BuildingStatus.Opened);
+
+            SpriteComponent? spriteComponent = entity.PlaySpriteAnimation("opened");
+
+            if (instance.Flags.HasFlag(DoorFlags.SetToFloorWhenOpened) && spriteComponent.HasValue)
+            {
+                spriteComponent = spriteComponent.Value.SetBatch(1);
+            }
+
+            if (spriteComponent.HasValue)
+            {
+                entity.SetSprite(spriteComponent.Value);
+            }
+
+            ColliderComponent? colliderComponent = entity.TryGetComponent<ColliderComponent>();
+            if (colliderComponent.HasValue)
+            {
+                ColliderComponent valueOrDefault = colliderComponent.GetValueOrDefault();
+                entity.SetCollider(valueOrDefault.SetLayer(0));
+            }
+
+            entity.TryFetchChild("Sign")?.Deactivate();
+            entity.TryFetchChild("Block")?.Deactivate();
+            entity.TryFetchChild("Npc passage")?.Deactivate();
+            entity.TryFetchChild("Close on player")?.Deactivate();
+        }
+
         yield return Wait.Stop;
     }
 }

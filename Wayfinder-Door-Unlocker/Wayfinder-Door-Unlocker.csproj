@@ -14,7 +14,7 @@
     </Reference>
 
     <Reference Include="RoadGameAssembly">
-      <HintPath>C:\Users\Echo\Documents\nw-decompiled\Neverway.dll</HintPath> 
+      <HintPath>C:\Program Files (x86)\Steam\steamapps\content\app_4520130\depot_4520131\Neverway.dll\Neverway.dll</HintPath> 
       <Private>false</Private>
     </Reference>
 
@@ -30,6 +30,11 @@
 
     <Reference Include="Murder">
       <HintPath>C:\Users\Echo\Documents\nw-decompiled\Murder.dll</HintPath> 
+      <Private>false</Private>
+    </Reference>
+	
+    <Reference Include="FNA">
+      <HintPath>C:\Program Files (x86)\Steam\steamapps\content\app_4520130\depot_4520131\ModdedCoreFiles\FNA.dll</HintPath> 
       <Private>false</Private>
     </Reference>
   </ItemGroup>
