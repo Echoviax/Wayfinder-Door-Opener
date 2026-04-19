@@ -11,9 +11,10 @@ using Wayfinder.API;
 
 public class ModEntry : IWayfinderMod
 {
+    public string ID => "com.echoviax.dooropener";
     public string Name => "Door Unlocker";
     public string Description => "Forces a lot of doors to be open always";
-    public string Version => "1.2.0";
+    public string Version => "1.2.1";
     public string Author => "Echoviax";
 
     private Harmony _harmony;
@@ -22,7 +23,7 @@ public class ModEntry : IWayfinderMod
     {
         try
         {
-            _harmony = new Harmony("com.echoviax.dooropener");
+            _harmony = new Harmony(ID);
             _harmony.PatchAll();
         }
         catch (Exception ex)
